@@ -1,0 +1,394 @@
+---
+title: "Pika Project updated"
+output:
+  html_document: default
+  word_document: default
+date: "2023-12-19"
+---
+
+```{r}
+setwd("/Users/johnimperato/Downloads")
+PikaData <- read.csv("ThePikaData.csv")
+
+options(repos = "https://cran.rstudio.com/")
+install.packages("dplyr")
+install.packages("MASS")
+
+library(MASS)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+
+
+```
+
+```{r}
+
+PikaData$Site.Name <- as.factor(PikaData$Site.Name)
+PikaData$marmot_presence <- as.factor(PikaData$marmot_presence)
+PikaData$woodrat_presence <- as.factor(PikaData$woodrat_presence)
+PikaData$water_presence <- as.factor(PikaData$water_presence)
+
+summary_by_site <- PikaData %>%
+  group_by(Site.Name) %>%
+   summarise(
+    mean_time_of_obs = mean(timeofobs, na.rm = TRUE),
+    mean_cover_grass = mean(lndCover_grass, na.rm = TRUE),
+    mean_cover_forb = mean(lndCover_forb, na.rm = TRUE),
+    mean_cover_shrub = mean(lndCover_shrub, na.rm = TRUE),
+    mean_cover_tree = mean(lndCover_tree, na.rm = TRUE),
+    mean_cover_bare = mean(lndCover_bare, na.rm = TRUE),
+    mean_cover_rock = mean(lndCover_rock, na.rm = TRUE),
+    mean_deepest_crevice = mean(deepest_crevice, na.rm = TRUE),
+    mean_largest_rock = mean(largest_rock, na.rm = TRUE),
+    mean_10th_largest_rock = mean(largest_rock_10th, na.rm = TRUE),
+    mean_elevation = mean(Elevation..m., na.rm = TRUE),
+    marmot = {
+      mar_counts <- table(marmot_presence)
+      if (mar_counts[1] == mar_counts[2]) 
+        {as.factor(1) }
+      else 
+       {as.factor( names(sort(table(marmot_presence), decreasing = TRUE)[1])) }},
+    woodrat = {
+      wood_counts <- table(woodrat_presence)
+      if (wood_counts[1] == wood_counts[2]) 
+        {as.factor(1)}
+      else 
+       {as.factor( names(sort(table(woodrat_presence), decreasing = TRUE)[1])) }},
+    water = {
+      H2O_counts <- table(water_presence)
+      if (H2O_counts[1] == H2O_counts[2]) 
+        {as.factor(1)}
+      else 
+       {as.factor( names(sort(table(water_presence), decreasing = TRUE)[1])) }},   
+    pika = names(sort(table(Presence_updated),decreasing = TRUE)[1])
+    )
+
+
+print(summary_by_site)
+
+```
+
+```{r}
+# Variables 
+
+timeobs <- summary_by_site$mean_time_of_obs
+logtimeobs <- log(summary_by_site$mean_time_of_obs + 1)
+grass <- summary_by_site$mean_cover_grass
+loggrass <- log(summary_by_site$mean_cover_grass + 1)
+forb <- summary_by_site$mean_cover_forb
+logforb <- log(summary_by_site$mean_cover_forb + 1)
+shrub <- summary_by_site$mean_cover_shrub
+logshrub <- log(summary_by_site$mean_cover_shrub + 1)
+tree <- summary_by_site$mean_cover_tree
+logtree <- log(summary_by_site$mean_cover_tree + 1)
+bare <- summary_by_site$mean_cover_bare
+logbare <- log(summary_by_site$mean_cover_bare + 1)
+rock <- summary_by_site$mean_cover_rock
+elevation <- summary_by_site$mean_elevation
+marmot1 <- summary_by_site$marmot
+woodrat1 <- summary_by_site$woodrat
+crevice <- summary_by_site$mean_deepest_crevice
+water1 <- summary_by_site$water
+lgrock <- summary_by_site$mean_largest_rock
+tenlgrock <- summary_by_site$mean_10th_largest_rock
+
+```
+
+```{r}
+# Step 1: identify variables. This regression aims to predict the number of minutes until a pika is first observed during a survey (timeobs) using a mix of continuous and categorical variables. The continuous variables are grass, forb, shrub, tree, bare, rock, elevation, crevice, lgrock, and tenlgrock and the categorical variables are marmot presence, woodrat presence, and water presence. We did not include the categorical predictor variable 'pika presence' in this analysis because only sites where pikas are present can have a value for time of first observation. 
+
+# Step 2: check relationships. Make a matrix plot. First, make a new data frame with the 14 variables we are going to use in this regression. Then, make a matrix plot.
+
+linear_PikaData <- summary_by_site %>%
+  select(mean_time_of_obs, mean_cover_grass, mean_cover_forb, mean_cover_shrub, mean_cover_tree, mean_cover_bare, mean_cover_rock, mean_deepest_crevice, mean_largest_rock, mean_10th_largest_rock, mean_elevation, marmot, woodrat, water)
+
+plot(linear_PikaData, pch = 4, col = "blue", lower.panel = NULL)
+
+pairs(linear_PikaData)
+```
+
+```{r}
+
+# Step 3: fit model. 
+
+model1 <- lm(timeobs ~ grass + forb + shrub + tree + bare + rock + elevation + crevice + lgrock + tenlgrock + marmot1 + woodrat1 + water1)
+
+summary(model1)
+
+# Initially, we have two significant predictors using an alpha of 0.05. Now Let's do backwards step wise regression, removing insignificant predictors one at a time, starting with the one with the highest p-value. 
+
+# Remove crevice
+
+model1.1 <- lm(timeobs ~ grass + forb + shrub + tree + bare + rock + elevation + lgrock + tenlgrock + marmot1 + woodrat1 + water1)
+
+summary(model1.1)
+
+# Remove lgrock
+
+model1.2 <- lm(timeobs ~ grass + forb + shrub + tree + bare + rock + elevation + tenlgrock + marmot1 + woodrat1 + water1)
+
+summary(model1.2)
+
+# Remove water
+
+model1.3 <- lm(timeobs ~ grass + forb + shrub + tree + bare + rock + elevation + tenlgrock + marmot1 + woodrat1)
+
+summary(model1.3)
+
+# Remove elevation
+
+model1.4 <- lm(timeobs ~ grass + forb + shrub + tree + bare + rock + tenlgrock + marmot1 + woodrat1)
+
+summary(model1.4)
+
+# Remove marmot
+
+model1.5 <- lm(timeobs ~ grass + forb + shrub + tree + bare + rock + tenlgrock + woodrat1)
+
+summary(model1.5)
+
+# Remove tree
+
+model1.6 <- lm(timeobs ~ grass + forb + shrub + bare + rock + tenlgrock + woodrat1)
+
+summary(model1.6)
+
+# Remove woodrat
+
+model1.7 <- lm(timeobs ~ grass + forb + shrub + bare + rock + tenlgrock)
+
+summary(model1.7)
+
+# Remove shrub
+
+model1.8 <- lm(timeobs ~ grass + forb + bare + rock + tenlgrock)
+
+summary(model1.8)
+
+# Remove grass
+
+model1.9 <- lm(timeobs ~ forb + bare + rock + tenlgrock)
+
+summary(model1.9)
+
+# Remove forb
+
+model1.1a <- lm(timeobs ~ bare + rock + tenlgrock)
+
+summary(model1.1a)
+
+# Remove rock
+
+model1.2a <- lm(timeobs ~ bare + tenlgrock)
+
+summary(model1.2a)
+
+# All remaining predictors (percent of land cover that is bare and tenth largest rock) are significant. 
+
+```
+
+```{r}
+## Step 5: check assumptions
+
+#Normal Quantile Plot
+
+nqp <- ggplot(data = model1.2a, aes(sample = .resid)) +
+  stat_qq_line(color = "red") +
+  stat_qq(color = "blue") +
+  labs(x = "Theoretical Quantiles", y = "Residual", title = "Normal Probability Plot") + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Histogram
+hist <- ggplot(model1.2a , aes(x = .resid))+
+  geom_histogram(binwidth = 2.5, color = "black" , fill = "lightblue")+
+  labs(x="Residual", y="Frequency", title="Histogram")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Versus Fits
+vf <- ggplot(model1.2a, aes(x = .fitted, y = .resid)) +
+  geom_point(color = "blue") +
+  labs(x="Fitted Value", y = "Residual Value", title = "Versus Fits") +
+   geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+#Versus Order
+vo <- ggplot(model1.2a, aes(x = c(1:length(model1.2a$residuals)), y = .resid)) +
+  geom_line(color = "lightblue") +  
+  geom_point(color = "blue") +
+  labs(x="Order", y = "Residual Value", title = "Versus Order") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")
+
+ggarrange(nqp, vf, hist, vo, 
+          labels = c("A", "B", "C", "D"),
+          ncol = 2, nrow = 2)
+
+# the NQP does not look like a line and the Versus Fits plot shows major heteroscedasticity. I suspect data may be heavily skewed, looking like an exponential curve. Let's check out some histograms.
+
+hist(timeobs)
+hist(log(timeobs + 1))
+
+histbare <- hist(bare)
+histlogbare <- hist(log(bare + 1))
+
+hist(tenlgrock)
+
+histgrass <- hist(grass)
+histloggrass <- hist(log(grass + 1))
+
+histforb <- hist(forb)
+histlogforb <- hist(log(forb + 1))
+
+histshrub <- hist(shrub)
+loghistshrub <- hist(log(shrub + 1))
+
+histtree <- hist(tree)
+histlogtree <- hist(log(tree + 1))
+
+hist(rock)
+
+hist(crevice)
+
+hist(elevation)
+
+hist(lgrock)
+
+ggarrange(histbare, histlogbare, histgrass, histloggrass, histshrub, loghistshrub, histforb, histlogforb, histtree, histlogtree,
+          ncol = 2, nrow = 5)
+
+# Many variables are heavily right-skewed and look like exponential curves. I will take natural logs of these variables to transform them. They include the y variable timeobs, and the x variables bare, grass, forb, shrub, and tree. 
+```
+
+```{r}
+
+# Revisit step 3. Fit new model with logs of timeobs and tenlgrock
+
+model2 <- lm(logtimeobs ~ loggrass + logforb + logshrub + logtree + logbare + rock + elevation + crevice + lgrock + tenlgrock + marmot1 + woodrat1 + water1)
+
+summary(model2)
+
+# Backwards step wise. 
+
+# Remove Elevation
+
+model2.1 <- lm(logtimeobs ~ loggrass + logforb + logshrub + logtree + logbare + rock + crevice + lgrock + tenlgrock + marmot1 + woodrat1 + water1)
+
+summary(model2.1)
+
+# Remove water
+
+model2.2 <- lm(logtimeobs ~ loggrass + logforb + logshrub + logtree + logbare + rock + crevice + lgrock + tenlgrock + marmot1 + woodrat1)
+
+summary(model2.2)
+
+# Remove marmot
+
+model2.3 <- lm(logtimeobs ~ loggrass + logforb + logshrub + logtree + logbare + rock + crevice + lgrock + tenlgrock + woodrat1)
+
+summary(model2.3)
+
+# Remove crevice
+
+model2.4 <- lm(logtimeobs ~ loggrass + logforb + logshrub + logtree + logbare + rock + lgrock + tenlgrock + woodrat1)
+
+summary(model2.4)
+
+# Remove woodrat
+
+model2.5 <- lm(logtimeobs ~ loggrass + logforb + logshrub + logtree + logbare + rock + lgrock + tenlgrock)
+
+summary(model2.5)
+
+# Remove lgrock
+
+model2.6 <- lm(logtimeobs ~ loggrass + logforb + logshrub + logtree + logbare + rock + tenlgrock)
+
+summary(model2.6)
+
+# Remove loggrass
+
+model2.7 <- lm(logtimeobs ~ logforb + logshrub + logtree + logbare + rock + tenlgrock)
+
+summary(model2.7)
+
+# Remove logforb
+
+model2.8 <- lm(logtimeobs ~ logshrub + logtree + logbare + rock + tenlgrock)
+
+summary(model2.8)
+
+# Remove logshrub
+
+model2.9 <- lm(logtimeobs ~ logtree + logbare + rock + tenlgrock)
+
+summary(model2.9)
+
+# Remove tenlgrock
+
+model2.1a <- lm(logtimeobs ~ logtree + logbare + rock)
+
+summary(model2.1a)
+
+# Step 4: identify siognificant predictors. The three remaining predictors, log of percent tree cover, log of percent land cover bare, and percent of rock cover, are signficant. 
+
+```
+
+```{r}
+
+# Revisit step 5: check assumptions
+
+#Normal Quantile Plot
+
+nqp <- ggplot(data = model2.1a, aes(sample = .resid)) +
+  stat_qq_line(color = "red") +
+  stat_qq(color = "blue") +
+  labs(x = "Theoretical Quantiles", y = "Residual", title = "Normal Probability Plot") + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Histogram
+hist <- ggplot(model2.1a , aes(x = .resid))+
+  geom_histogram(binwidth = 0.5, color = "black" , fill = "lightblue")+
+  labs(x="Residual", y="Frequency", title="Histogram")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Versus Fits
+vf <- ggplot(model2.1a, aes(x = .fitted, y = .resid)) +
+  geom_point(color = "blue") +
+  labs(x="Fitted Value", y = "Residual Value", title = "Versus Fits") +
+   geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+#Versus Order
+vo <- ggplot(model2.1a, aes(x = c(1:length(model1.2a$residuals)), y = .resid)) +
+  geom_line(color = "lightblue") +  
+  geom_point(color = "blue") +
+  labs(x="Order", y = "Residual Value", title = "Versus Order") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")
+
+ggarrange(nqp, vf, hist, vo, 
+          labels = c("A", "B", "C", "D"),
+          ncol = 2, nrow = 2)
+
+```
+
+```{r}
+
+# The NQP looks more like a line, but the Versus Order plot still shows heteroscedasticity (albeit less strongly than before transforming some of the variables). I'll try out some Box-Cox's to see if I missed anything.
+
+boxcoxtimeobs <- timeobs + 1
+
+model3 <- lm(boxcoxtimeobs ~ grass + forb + shrub + tree + bare + rock + elevation + crevice + lgrock + tenlgrock + marmot1 + woodrat1 + water1)
+
+summary(model3)
+
+bc <- boxcox(model3, lambda = seq(-3,3))
+
+(best.lambda <- bc$x[which(bc$y==max(bc$y))])
+
+# Box-Cox transformation gives us a best lambda of -0.03, which is really close to 0, which tells us that taking natural logs was the right move. Maybe we can't do anything about the lingering heteroscedasticty. 
+
+
+
+```
